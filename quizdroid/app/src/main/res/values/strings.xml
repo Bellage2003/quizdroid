@@ -1,0 +1,12 @@
+<resources>
+    <string name="app_name">quizdroid</string>
+    <string name="begin_button">Begin</string>
+    <string name="choice_1">Choice 1</string>
+    <string name="choice_2">Choice 2</string>
+    <string name="choice_3">Choice 3</string>
+    <string name="choice_4">Choice 4</string>
+    <string name="submit_button">Submit</string>
+    <string name="next_button">Next</string>
+    <string name="finish_button">Finish</string>
+    <string name="back_button">Back</string>
+</resources>
