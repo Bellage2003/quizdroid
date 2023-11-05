@@ -47,7 +47,7 @@ class MainActivity : AppCompatActivity() {
         iconImageView = findViewById(R.id.iconImageView)
         userAnswers = mutableListOf()
 
-        val topics = QuizApp.getTopicRepository().getTopics().map { "${it.title}\n(${it.shortDescription})" }.toTypedArray()
+        val topics = QuizApp.getTopicRepository().getTopics().map {"${it.title}\n(${it.shortDescription})" }.toTypedArray()
         val adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, topics)
         listView.adapter = adapter
 
@@ -60,7 +60,7 @@ class MainActivity : AppCompatActivity() {
 
             val iconResId = topic?.icon ?: R.drawable.baseline_quiz_24
             iconImageView.setImageResource(iconResId)
-            iconImageView.visibility = ImageView.VISIBLE
+            //iconImageView.visibility = ImageView.VISIBLE
 
             topicNameTextView.text = topic?.title ?: ""
             topicNameTextView.visibility = TextView.VISIBLE

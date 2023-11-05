@@ -33,6 +33,7 @@
         android:textSize="24sp"
         android:visibility="gone"
         android:layout_marginTop="16dp"
+        android:drawableLeft="@drawable/baseline_quiz_24"
         app:layout_constraintStart_toEndOf="@id/iconImageView"
         app:layout_constraintTop_toTopOf="@id/iconImageView" />
 
