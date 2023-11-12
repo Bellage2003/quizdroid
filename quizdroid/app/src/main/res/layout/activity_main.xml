@@ -153,4 +153,11 @@
         android:text="@string/back_button"
         android:visibility="gone" />
 
+    <Button
+        android:id="@+id/preferencesButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Preferences"
+        android:layout_marginTop="16dp" />
+
 </LinearLayout>

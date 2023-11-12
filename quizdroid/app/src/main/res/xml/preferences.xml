@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
+    <EditTextPreference
+        android:key="data_url"
+        android:title="Data URL"
+        android:summary="URL for question data"
+        android:inputType="textUri"
+        android:defaultValue="http://tednewardsandbox.site44.com/questions.json" />
+
+    <EditTextPreference
+        android:key="download_interval"
+        android:title="Download Interval (minutes)"
+        android:summary="How often to check for new downloads (in minutes)"
+        android:inputType="number"
+        android:defaultValue="30" />
+
+</PreferenceScreen>

@@ -2,101 +2,104 @@ package edu.uw.ischool.gehuijun.quizdroid
 
 import android.app.Application
 import android.util.Log
+import android.content.Context
+import com.google.gson.Gson
+import java.io.IOException
+import java.io.InputStreamReader
+import java.net.HttpURLConnection
+import java.net.URL
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
+import com.google.gson.reflect.TypeToken
 
-data class Quiz(val questionText: String, val choices: List<String>, val correctAnswer: Int)
+data class Quiz(
+    val text: String,
+    val answer: Int,
+    val answers: List<String>
+)
 
 data class Topic(
     val title: String,
-    val icon: Int,
-    val shortDescription: String,
-    val longDescription: String,
-    val quizzes: List<Quiz>
+    val desc: String,
+    val questions: List<Quiz>
 )
 
 interface TopicRepository {
-    fun getTopics(): List<Topic>
+    suspend fun getTopics(): List<Topic>
 }
 
-class InMemoryTopicRepository : TopicRepository {
-    private val topics: List<Topic> = listOf(
-        Topic(
-            "Math",
-            R.drawable.baseline_quiz_24,
-            "Mathematical operations",
-            "Mathematics is the science of numbers and their operations, interrelations, combinations, generalizations, and abstractions and of space configurations and their structure, measurement, transformations, and generalizations.",
-            listOf(
-                Quiz("What is 2 + 2?", listOf("1", "2", "3", "4"), 3),
-                Quiz("What is 3 x 3?", listOf("6", "9", "12", "15"), 1),
-                Quiz("What is the square root of 144?", listOf("14", "16", "18", "12"), 3),
-                Quiz("What is the value of π (pi) to two decimal places?", listOf("3.16", "3.14", "3.20", "3.18"), 1)
-            )
-        ),
-        Topic(
-            "Physics",
-            R.drawable.baseline_quiz_24,
-            "Study of matter and energy.",
-            "Physics is the natural science that studies matter, its fundamental constituents, its motion and behavior through space and time, and the related entities of energy and force.",
-            listOf(
-                Quiz(
-                    "What is the speed of light?",
-                    listOf("299,792,458 m/s", "100 m/s", "1,000,000 m/s", "10 m/s"),
-                    0
-                ),
-                Quiz(
-                    "What is Newton's first law of motion?",
-                    listOf(
-                        "An object at rest stays at rest",
-                        "F=ma",
-                        "For every action, there is an equal and opposite reaction",
-                        "None of the above"
-                    ),
-                    0
-                ),
-                Quiz(
-                    "What is the unit of measurement for electric current?",
-                    listOf("Volt (V)", "Ohm (Ω)", "Ampere (A)", "Watt (W)"),
-                    2
-                ),
-                Quiz(
-                    "What is the SI unit of force?",
-                    listOf("Newton (N)", "Joule (J)", "Watt (W)", "Volt (V)"),
-                    0
-                )
-            )
-        ),
-        Topic(
-            "Marvel Super Heroes",
-            R.drawable.baseline_quiz_24,
-            "Explore iconic Marvel characters",
-            "Marvel Super Heroes are fictional characters with superhuman abilities, often portrayed as heroes who protect the world from powerful threats and villains.",
-            listOf(
-                Quiz("Who is Thor's brother?", listOf("Loki", "Iron Man", "Captain America", "Hulk"), 0),
-                Quiz(
-                    "What is Iron Man's real name?",
-                    listOf("Tony Stark", "Steve Rogers", "Bruce Banner", "Peter Parker"),
-                    0
-                ),
-                Quiz(
-                    "What is the real name of Captain America?",
-                    listOf("Steve Rogers", "Tony Stark", "Bruce Banner", "Peter Parker"),
-                    0
-                ),
-                Quiz(
-                    "Who is known as the 'Merc with a Mouth' in the Marvel Universe?",
-                    listOf("Iron Man", "Deadpool", "Wolverine", "Thor"),
-                    1
-                )
-            )
-        )
-    )
+class DownloadTask(private val context: Context) {
 
-    override fun getTopics(): List<Topic> {
-        return topics
+    companion object {
+        var isRunning = false
+    }
+
+    fun execute(urlString: String?): String {
+        isRunning = true
+        return try {
+            downloadData(urlString)
+        } finally {
+            isRunning = false
+        }
+    }
+
+    private fun downloadData(urlString: String?): String {
+        return try {
+            val url = URL(urlString)
+            val connection = url.openConnection() as HttpURLConnection
+            //connection.requestMethod = "GET"
+            //connection.connect()
+
+            val inputStream = connection.inputStream
+            val reader = InputStreamReader(inputStream)
+            reader.use {
+                it.readText()
+            }
+        } catch (e: IOException) {
+            throw IOException("Error downloading data", e)
+        }
+    }
+}
+
+class JsonTopicRepository(private val context: Context) : TopicRepository {
+
+    internal fun parseJson(jsonData: String): List<Topic> {
+        // Log the received JSON data
+        Log.d("JsonTopicRepository", "Received JSON: $jsonData")
+
+        // Parse the JSON data using Gson
+        return try {
+            Gson().fromJson(jsonData, object : TypeToken<List<Topic>>() {}.type)
+        } catch (e: Exception) {
+            // Log any parsing errors
+            Log.e("JsonTopicRepository", "Error parsing JSON", e)
+            emptyList()
+        }
+    }
+
+    override suspend fun getTopics(): List<Topic> {
+        val dataUrl = "http://tednewardsandbox.site44.com/questions.json"
+
+        if (DownloadTask.isRunning) {
+            return emptyList()
+        }
+
+        return try {
+            withContext(Dispatchers.IO) {
+                val jsonData = DownloadTask(context).execute(dataUrl)
+                parseJson(jsonData)
+            }
+        } catch (e: Exception) {
+            Log.e("JsonTopicRepository", "Error fetching topics", e)
+            emptyList()
+        }
     }
 }
 
 class QuizApp : Application() {
-    private val topicRepository: TopicRepository = InMemoryTopicRepository()
+    private val topicRepository: TopicRepository = JsonTopicRepository(this)
 
     companion object {
         private lateinit var instance: QuizApp
@@ -114,5 +117,15 @@ class QuizApp : Application() {
         super.onCreate()
         instance = this
         Log.d("QuizApp", "QuizApp is running")
+
+        CoroutineScope(Dispatchers.Main).launch {
+            try {
+                val topics = topicRepository.getTopics()
+                Log.d("MainActivity", "Fetched topics: $topics")
+                // Do something with the topics
+            } catch (e: Exception) {
+                Log.e("MainActivity", "Error fetching topics", e)
+            }
+        }
     }
 }
