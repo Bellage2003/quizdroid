@@ -15,13 +15,35 @@
         android:layout_marginTop="16dp"
         android:layout_marginBottom="16dp" />
 
+    <ImageView
+        android:id="@+id/iconImageView"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:src="@drawable/baseline_quiz_24"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        android:layout_marginEnd="16dp"
+        android:visibility="gone"/>
+
     <TextView
         android:id="@+id/topicNameTextView"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:textSize="24sp"
         android:visibility="gone"
-        android:layout_marginTop="16dp" />
+        android:layout_marginTop="16dp"
+        android:drawableLeft="@drawable/baseline_quiz_24"
+        app:layout_constraintStart_toEndOf="@id/iconImageView"
+        app:layout_constraintTop_toTopOf="@id/iconImageView" />
+
+    <TextView
+        android:id="@+id/shortDescriptionTextView"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textSize="16sp"
+        android:layout_marginStart="16dp"
+        android:visibility="gone" />
 
     <TextView
         android:id="@+id/descriptionTextView"
@@ -30,7 +52,9 @@
         android:textSize="18sp"
         android:visibility="gone"
         android:layout_gravity="center_horizontal"
-        android:layout_marginBottom="16dp" />
+        android:layout_marginBottom="16dp"
+        app:layout_constraintStart_toEndOf="@id/iconImageView"
+        app:layout_constraintTop_toBottomOf="@id/topicNameTextView"/>
 
     <TextView
         android:id="@+id/totalQuestionsTextView"
@@ -128,5 +152,12 @@
         android:layout_height="wrap_content"
         android:text="@string/back_button"
         android:visibility="gone" />
+
+    <Button
+        android:id="@+id/preferencesButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Preferences"
+        android:layout_marginTop="16dp" />
 
 </LinearLayout>
