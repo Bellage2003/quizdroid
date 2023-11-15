@@ -13,6 +13,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import com.google.gson.reflect.TypeToken
+import java.io.File
 
 data class Quiz(
     val text: String,
@@ -49,8 +50,6 @@ class DownloadTask(private val context: Context) {
         return try {
             val url = URL(urlString)
             val connection = url.openConnection() as HttpURLConnection
-            //connection.requestMethod = "GET"
-            //connection.connect()
 
             val inputStream = connection.inputStream
             val reader = InputStreamReader(inputStream)
@@ -66,29 +65,44 @@ class DownloadTask(private val context: Context) {
 class JsonTopicRepository(private val context: Context) : TopicRepository {
 
     internal fun parseJson(jsonData: String): List<Topic> {
-        // Log the received JSON data
         Log.d("JsonTopicRepository", "Received JSON: $jsonData")
 
-        // Parse the JSON data using Gson
         return try {
             Gson().fromJson(jsonData, object : TypeToken<List<Topic>>() {}.type)
         } catch (e: Exception) {
-            // Log any parsing errors
             Log.e("JsonTopicRepository", "Error parsing JSON", e)
             emptyList()
         }
     }
 
-    override suspend fun getTopics(): List<Topic> {
-        val dataUrl = "http://tednewardsandbox.site44.com/questions.json"
+    private fun readJsonFromSDCard(fileName: String): String {
+        return try {
+            // Specify the path to the file on the SD card
+            val filePath = File("/sdcard/$fileName")
 
-        if (DownloadTask.isRunning) {
-            return emptyList()
+            // Read the contents of the file
+            if (filePath.exists()) {
+                Log.d("JsonTopicRepository", "File exists at path: ${filePath.absolutePath}")
+                filePath.readText()
+            } else {
+                Log.e("JsonTopicRepository", "File does not exist at path: ${filePath.absolutePath}")
+                ""
+            }
+        } catch (e: Exception) {
+            Log.e("JsonTopicRepository", "Error reading JSON from SD card", e)
+            ""
         }
+    }
+
+    override suspend fun getTopics(): List<Topic> {
+        val fileName = "questions.json"
 
         return try {
             withContext(Dispatchers.IO) {
-                val jsonData = DownloadTask(context).execute(dataUrl)
+                // Read JSON data from SD card
+                val jsonData = readJsonFromSDCard(fileName)
+
+                // Parse the JSON data
                 parseJson(jsonData)
             }
         } catch (e: Exception) {

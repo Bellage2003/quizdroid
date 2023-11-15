@@ -2,14 +2,22 @@ package edu.uw.ischool.gehuijun.quizdroid
 
 import android.os.Bundle
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.util.Log
 import android.widget.ArrayAdapter
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import androidx.preference.PreferenceManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.BufferedReader
+import java.io.File
+import java.io.FileReader
+import android.Manifest
 
 
 class MainActivity : AppCompatActivity() {
@@ -36,6 +44,10 @@ class MainActivity : AppCompatActivity() {
     private var incorrectCount = 0
     private val url = "http://tednewardsandbox.site44.com/questions.json"
 
+    companion object {
+        private const val READ_EXTERNAL_STORAGE_PERMISSION_CODE = 1
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
@@ -57,23 +69,48 @@ class MainActivity : AppCompatActivity() {
         userAnswers = mutableListOf()
         preferencesButton = findViewById(R.id.preferencesButton)
 
-        loadDataFromPreferences()
+        val file = File("/sdcard/questions.json")
+
+        // Check for READ_EXTERNAL_STORAGE permission
+        if (ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.READ_EXTERNAL_STORAGE
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            // Permission is not granted, request it
+            ActivityCompat.requestPermissions(
+                this,
+                arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE),
+                READ_EXTERNAL_STORAGE_PERMISSION_CODE
+            )
+        } else {
+            // Permission is granted, proceed with reading the file
+            loadTopicsFromFile(file)
+        }
 
         CoroutineScope(Dispatchers.Main).launch {
-            val jsonData = withContext(Dispatchers.IO) {
-                DownloadTask(this@MainActivity).execute(url)
+            try {
+                val jsonData = readFileContent(file)
+                val topics = JsonTopicRepository(this@MainActivity).parseJson(jsonData)
+                val topicsArray = topics.map { it.title }.toTypedArray()
+                val adapter =
+                    ArrayAdapter(
+                        this@MainActivity,
+                        android.R.layout.simple_list_item_1,
+                        topicsArray
+                    )
+                listView.adapter = adapter
+            } catch (e: Exception) {
+                Log.e("MainActivity", "Error loading topics", e)
+                Toast.makeText(this@MainActivity, "Error loading topics", Toast.LENGTH_SHORT).show()
             }
-
-            val topics = JsonTopicRepository(this@MainActivity).parseJson(jsonData)
-            val topicsArray = topics.map { it.title }.toTypedArray()
-            val adapter =
-                ArrayAdapter(this@MainActivity, android.R.layout.simple_list_item_1, topicsArray)
-            listView.adapter = adapter
         }
+
 
         preferencesButton.setOnClickListener {
             showPreferences()
         }
+        loadDataFromPreferences()
 
         listView.setOnItemClickListener { _, _, position, _ ->
             CoroutineScope(Dispatchers.Main).launch {
@@ -249,6 +286,64 @@ class MainActivity : AppCompatActivity() {
         val dataUrl = sharedPreferences.getString("pref_data_url", url)
         val refreshInterval = sharedPreferences.getString("pref_refresh_interval", "60")?.toLongOrNull()
     }
+
+    private fun readFileContent(file: File): String {
+        val reader = BufferedReader(FileReader(file))
+        val content = StringBuilder()
+        var line: String?
+
+        try {
+            while (reader.readLine().also { line = it } != null) {
+                content.append(line)
+            }
+        } finally {
+            reader.close()
+        }
+
+        return content.toString()
+    }
+
+    private fun loadTopicsFromFile(file: File) {
+        CoroutineScope(Dispatchers.Main).launch {
+            try {
+                val jsonData = readFileContent(file)
+                val topics = JsonTopicRepository(this@MainActivity).parseJson(jsonData)
+                val topicsArray = topics.map { it.title }.toTypedArray()
+                val adapter =
+                    ArrayAdapter(this@MainActivity, android.R.layout.simple_list_item_1, topicsArray)
+                listView.adapter = adapter
+            } catch (e: Exception) {
+                Log.e("MainActivity", "Error loading topics", e)
+                // Handle error loading topics (e.g., show a toast or log a message)
+                Toast.makeText(this@MainActivity, "Error loading topics", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        when (requestCode) {
+            READ_EXTERNAL_STORAGE_PERMISSION_CODE -> {
+                if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                    // Permission granted, proceed with reading the file
+                    val file = File("/sdcard/questions.json")
+                    loadTopicsFromFile(file)
+                } else {
+                    // Permission denied, handle accordingly (e.g., show a toast or log a message)
+                    Toast.makeText(
+                        this,
+                        "Permission denied. Cannot load topics.",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            }
+        }
+    }
 }
+
+
 
 
