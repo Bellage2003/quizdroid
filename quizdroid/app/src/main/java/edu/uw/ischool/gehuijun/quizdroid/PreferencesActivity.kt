@@ -18,12 +18,14 @@ class PreferencesActivity : AppCompatActivity() {
         override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
             setPreferencesFromResource(R.xml.preferences, rootKey)
 
-            // Add listeners or additional setup for preferences if needed
             findPreference<Preference>("data_url")?.setOnPreferenceChangeListener { _, newValue ->
+                // Use the utility class to schedule periodic download
+                PeriodicDownloadScheduler(requireContext()).schedulePeriodicDownload(newValue.toString())
                 true
             }
 
-            findPreference<Preference>("download_interval")?.setOnPreferenceChangeListener { _, newValue ->
+            findPreference<Preference>("download_interval")?.setOnPreferenceChangeListener { _, _ ->
+                // Handle download interval change if needed
                 true
             }
         }

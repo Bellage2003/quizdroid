@@ -1,10 +1,11 @@
 package edu.uw.ischool.gehuijun.quizdroid
 
-import android.os.Bundle
+import android.Manifest
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.util.Log
-import android.widget.ArrayAdapter
+import android.os.Build
+import android.os.Bundle
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
@@ -16,9 +17,12 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.BufferedReader
 import java.io.File
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
+import android.provider.Settings
+import android.app.AlertDialog
+import android.util.Log
 import java.io.FileReader
-import android.Manifest
-
 
 class MainActivity : AppCompatActivity() {
     private lateinit var listView: ListView
@@ -43,6 +47,7 @@ class MainActivity : AppCompatActivity() {
     private var mScore = 0
     private var incorrectCount = 0
     private val url = "http://tednewardsandbox.site44.com/questions.json"
+
 
     companion object {
         private const val READ_EXTERNAL_STORAGE_PERMISSION_CODE = 1
@@ -69,7 +74,7 @@ class MainActivity : AppCompatActivity() {
         userAnswers = mutableListOf()
         preferencesButton = findViewById(R.id.preferencesButton)
 
-        val file = File("/sdcard/questions.json")
+        val file = File(filesDir, "questions.json")
 
         // Check for READ_EXTERNAL_STORAGE permission
         if (ContextCompat.checkSelfPermission(
@@ -90,22 +95,23 @@ class MainActivity : AppCompatActivity() {
 
         CoroutineScope(Dispatchers.Main).launch {
             try {
-                val jsonData = readFileContent(file)
-                val topics = JsonTopicRepository(this@MainActivity).parseJson(jsonData)
-                val topicsArray = topics.map { it.title }.toTypedArray()
-                val adapter =
-                    ArrayAdapter(
-                        this@MainActivity,
-                        android.R.layout.simple_list_item_1,
-                        topicsArray
-                    )
-                listView.adapter = adapter
+                handleNetworkConnectivity {
+                    val jsonData = readFileContent(file)
+                    val topics = JsonTopicRepository(this@MainActivity).parseJson(jsonData)
+                    val topicsArray = topics.map { it.title }.toTypedArray()
+                    val adapter =
+                        ArrayAdapter(
+                            this@MainActivity,
+                            android.R.layout.simple_list_item_1,
+                            topicsArray
+                        )
+                    listView.adapter = adapter
+                }
             } catch (e: Exception) {
                 Log.e("MainActivity", "Error loading topics", e)
                 Toast.makeText(this@MainActivity, "Error loading topics", Toast.LENGTH_SHORT).show()
             }
         }
-
 
         preferencesButton.setOnClickListener {
             showPreferences()
@@ -113,97 +119,98 @@ class MainActivity : AppCompatActivity() {
         loadDataFromPreferences()
 
         listView.setOnItemClickListener { _, _, position, _ ->
-            CoroutineScope(Dispatchers.Main).launch {
-                val selectedTitle = listView.getItemAtPosition(position) as String
-                val topic = withContext(Dispatchers.IO) {
-                    QuizApp.getTopicRepository().getTopics().find { it.title == selectedTitle }
-                }
-                listView.visibility = ListView.GONE
+            handleNetworkConnectivity {
+                CoroutineScope(Dispatchers.Main).launch {
+                    val selectedTitle = listView.getItemAtPosition(position) as String
+                    val topic = withContext(Dispatchers.IO) {
+                        QuizApp.getTopicRepository().getTopics().find { it.title == selectedTitle }
+                    }
+                    listView.visibility = ListView.GONE
 
-                topicNameTextView.text = topic?.title ?: ""
-                topicNameTextView.visibility = TextView.VISIBLE
+                    topicNameTextView.text = topic?.title ?: ""
+                    topicNameTextView.visibility = TextView.VISIBLE
 
-                descriptionTextView.text = topic?.desc ?: ""
-                descriptionTextView.visibility = TextView.VISIBLE
+                    descriptionTextView.text = topic?.desc ?: ""
+                    descriptionTextView.visibility = TextView.VISIBLE
 
-                totalQuestionsTextView.text = "Total Questions: ${topic?.questions?.size ?: 0}"
-                totalQuestionsTextView.visibility = TextView.VISIBLE
+                    totalQuestionsTextView.text = "Total Questions: ${topic?.questions?.size ?: 0}"
+                    totalQuestionsTextView.visibility = TextView.VISIBLE
 
-                beginButton.visibility = Button.VISIBLE
-                beginButton.setOnClickListener {
-                    topic?.questions?.let { loadQuestion(it) }
-                    topicNameTextView.visibility = TextView.GONE
-                    beginButton.visibility = Button.GONE
-                    descriptionTextView.visibility = TextView.GONE
-                    totalQuestionsTextView.visibility = TextView.GONE
+                    beginButton.visibility = Button.VISIBLE
+                    beginButton.setOnClickListener {
+                        topic?.questions?.let { loadQuestion(it) }
+                        topicNameTextView.visibility = TextView.GONE
+                        beginButton.visibility = Button.GONE
+                        descriptionTextView.visibility = TextView.GONE
+                        totalQuestionsTextView.visibility = TextView.GONE
 
-                    questionText.visibility = TextView.VISIBLE
-                    radioGroup.visibility = RadioGroup.VISIBLE
-                    submitButton.visibility = Button.GONE
-                    answerText.visibility = TextView.GONE
-                    iconImageView.visibility = ImageView.GONE
-                }
-
-                radioGroup.setOnCheckedChangeListener { _, checkedId ->
-                    if (checkedId != -1) {
-                        submitButton.visibility = Button.VISIBLE
-                        backButton.visibility = Button.VISIBLE
-                    } else {
+                        questionText.visibility = TextView.VISIBLE
+                        radioGroup.visibility = RadioGroup.VISIBLE
                         submitButton.visibility = Button.GONE
-                        backButton.visibility = Button.GONE
+                        answerText.visibility = TextView.GONE
+                        iconImageView.visibility = ImageView.GONE
+                    }
+
+                    radioGroup.setOnCheckedChangeListener { _, checkedId ->
+                        if (checkedId != -1) {
+                            submitButton.visibility = Button.VISIBLE
+                            backButton.visibility = Button.VISIBLE
+                        } else {
+                            submitButton.visibility = Button.GONE
+                            backButton.visibility = Button.GONE
+                        }
+                    }
+
+                    submitButton.setOnClickListener {
+                        val selectedRadioButtonId = radioGroup.checkedRadioButtonId
+                        val selectedRadioButton = findViewById<RadioButton>(selectedRadioButtonId)
+                        val selectedAnswer = selectedRadioButton.text.toString()
+
+                        userAnswers.add(selectedAnswer)
+
+                        topic?.questions?.let { loadQuestion(it) }
+
+                        showAnswerPage()
                     }
                 }
+            }
 
-                submitButton.setOnClickListener {
-                    val selectedRadioButtonId = radioGroup.checkedRadioButtonId
-                    val selectedRadioButton = findViewById<RadioButton>(selectedRadioButtonId)
-                    val selectedAnswer = selectedRadioButton.text.toString()
+            nextButton.setOnClickListener {
+                currentQuestionIndex++
+                loadQuestion(currentQuestions)
 
-                    userAnswers.add(selectedAnswer)
+                radioGroup.clearCheck()
 
-                    topic?.questions?.let { loadQuestion(it) }
+                answerText.visibility = TextView.GONE
+                nextButton.visibility = Button.GONE
 
-                    showAnswerPage()
-                }
+                radioGroup.visibility = RadioGroup.VISIBLE
+                answerText.visibility = TextView.GONE
+            }
+
+            finishButton.setOnClickListener {
+                userAnswers = mutableListOf()
+                mScore = 0
+                incorrectCount = 0
+                currentQuestionIndex = 0
+
+                listView.visibility = ListView.VISIBLE
+                topicNameTextView.visibility = TextView.GONE
+                beginButton.visibility = Button.GONE
+                questionText.visibility = TextView.GONE
+                radioGroup.visibility = RadioGroup.GONE
+                submitButton.visibility = Button.GONE
+                answerText.visibility = TextView.GONE
+                nextButton.visibility = Button.GONE
+                finishButton.visibility = Button.GONE
+                backButton.visibility = Button.GONE
+                answerText.visibility = TextView.GONE
+            }
+
+            backButton.setOnClickListener {
+                onBackPressed()
             }
         }
-
-        nextButton.setOnClickListener {
-            currentQuestionIndex++
-            loadQuestion(currentQuestions)
-
-            radioGroup.clearCheck()
-
-            answerText.visibility = TextView.GONE
-            nextButton.visibility = Button.GONE
-
-            radioGroup.visibility = RadioGroup.VISIBLE
-            answerText.visibility = TextView.GONE
-        }
-
-        finishButton.setOnClickListener {
-            userAnswers = mutableListOf()
-            mScore = 0
-            incorrectCount = 0
-            currentQuestionIndex = 0
-
-            listView.visibility = ListView.VISIBLE
-            topicNameTextView.visibility = TextView.GONE
-            beginButton.visibility = Button.GONE
-            questionText.visibility = TextView.GONE
-            radioGroup.visibility = RadioGroup.GONE
-            submitButton.visibility = Button.GONE
-            answerText.visibility = TextView.GONE
-            nextButton.visibility = Button.GONE
-            finishButton.visibility = Button.GONE
-            backButton.visibility = Button.GONE
-            answerText.visibility = TextView.GONE
-        }
-
-        backButton.setOnClickListener {
-            onBackPressed()
-        }
-
     }
 
     private fun showPreferences() {
@@ -264,6 +271,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onBackPressed() {
+        super.onBackPressed()
+
         if (currentQuestionIndex == 0) {
             listView.visibility = ListView.VISIBLE
             questionText.visibility = TextView.GONE
@@ -284,7 +293,11 @@ class MainActivity : AppCompatActivity() {
     private fun loadDataFromPreferences() {
         val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this)
         val dataUrl = sharedPreferences.getString("pref_data_url", url)
-        val refreshInterval = sharedPreferences.getString("pref_refresh_interval", "60")?.toLongOrNull()
+        val refreshInterval = sharedPreferences.getString("pref_refresh_interval", "1")?.toLongOrNull()
+
+        // Initialize the scheduler
+        val periodicDownloadScheduler = PeriodicDownloadScheduler(this)
+        periodicDownloadScheduler.schedulePeriodicDownload(dataUrl.toString())
     }
 
     private fun readFileContent(file: File): String {
@@ -325,11 +338,12 @@ class MainActivity : AppCompatActivity() {
         permissions: Array<out String>,
         grantResults: IntArray
     ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         when (requestCode) {
             READ_EXTERNAL_STORAGE_PERMISSION_CODE -> {
                 if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                     // Permission granted, proceed with reading the file
-                    val file = File("/sdcard/questions.json")
+                    val file = File(filesDir, "questions.json")
                     loadTopicsFromFile(file)
                 } else {
                     // Permission denied, handle accordingly (e.g., show a toast or log a message)
@@ -342,8 +356,39 @@ class MainActivity : AppCompatActivity() {
             }
         }
     }
+
+    private fun handleNetworkConnectivity(action: () -> Unit) {
+        if (isNetworkAvailable()) {
+            action.invoke()
+        } else {
+            // Network is not available, display an error message
+            val builder = AlertDialog.Builder(this)
+            builder.setTitle("No Internet Connection")
+            builder.setMessage("You are currently offline. Do you want to turn off Airplane mode?")
+            builder.setPositiveButton("Yes") { _, _ ->
+                // User clicked Yes, open settings to turn off Airplane mode
+                openAirplaneModeSettings()
+            }
+            builder.setNegativeButton("No") { _, _ ->
+                Toast.makeText(this, "No Internet connection", Toast.LENGTH_SHORT).show()
+            }
+            builder.show()
+        }
+    }
+
+    private fun openAirplaneModeSettings() {
+        val intent = Intent(Settings.ACTION_AIRPLANE_MODE_SETTINGS)
+        startActivity(intent)
+    }
+
+    private fun isNetworkAvailable(): Boolean {
+        val connectivityManager =
+            getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+
+        val network = connectivityManager.activeNetwork
+        val capabilities = connectivityManager.getNetworkCapabilities(network)
+
+        return capabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
+    }
+
 }
-
-
-
-
