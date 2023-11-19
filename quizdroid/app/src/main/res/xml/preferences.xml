@@ -12,6 +12,6 @@
         android:title="Download Interval (minutes)"
         android:summary="How often to check for new downloads (in minutes)"
         android:inputType="number"
-        android:defaultValue="30" />
+        android:defaultValue="1" />
 
 </PreferenceScreen>

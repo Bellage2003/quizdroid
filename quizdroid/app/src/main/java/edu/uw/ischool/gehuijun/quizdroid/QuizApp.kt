@@ -300,13 +300,11 @@ class QuizApp: Application() {
                 builder.setTitle("Error Downloading Data")
                 builder.setMessage("Failed to download data. Do you want to retry or quit the application?")
                 builder.setPositiveButton("Retry") { _, _ ->
-                    // User clicked Retry, attempt the download again
                     CoroutineScope(Dispatchers.IO).launch {
                         downloadDataInBackground()
                     }
                 }
                 builder.setNegativeButton("Quit") { _, _ ->
-                    // User clicked Quit, close the application
                     exitProcess(0)
                 }
                 builder.show()
